@@ -3,6 +3,7 @@ package ffvm
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -160,6 +161,18 @@ func newParser() Parser {
 		} else if val < _min {
 			return ValidatorIssue{
 				Issue: "expected not to be less than " + min + " but be " + fmt.Sprint(val),
+			}
+		}
+
+		return ValidatorIssue{}
+	})
+
+	p.setValidatorFunc("regex", func(v string, pattern string) ValidatorIssue {
+		if matched, err := regexp.MatchString(pattern, v); err != nil {
+			panic(err)
+		} else if !matched {
+			return ValidatorIssue{
+				Issue: "expected match string with " + pattern,
 			}
 		}
 
