@@ -6,13 +6,12 @@ import (
 )
 
 type Something struct {
-	FirstName string `ffvm:"upper;lower,empty;upper"`
-	Age       int    `ffvm:"upper;lower,empty;upper"`
+	FirstName string `ffvm:"upper;lower,empty;upper;min_len=10;len=100"`
+	Age       int    `ffvm:",max=5;min=11"`
 }
 
 func main() {
-	parser := ffvm.NewParser()
 	st := Something{FirstName: "Amir", Age: 10}
-	fmt.Println(parser.Act(&st))
+	fmt.Println(ffvm.Validate(&st))
 	fmt.Println(st)
 }
