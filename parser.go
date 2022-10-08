@@ -278,6 +278,8 @@ func (p Parser) parseActors(instance any) {
 
 				return issues
 			}))
+		} else {
+			actors = append(actors, reflect.Value{})
 		}
 	}
 
