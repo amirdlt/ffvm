@@ -182,7 +182,7 @@ func newParser() Parser {
 		return ValidatorIssue{}
 	})
 
-	p.setValidatorFunc("enum", func(v any, values ...any) {
+	p.setValidatorFunc("enum", func(v any, values ...any) ValidatorIssue {
 		for _, vv := range values {
 			if reflect.DeepEqual(v, vv) {
 				return ValidatorIssue{}
