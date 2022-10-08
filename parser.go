@@ -190,7 +190,7 @@ func newParser() Parser {
 		}
 
 		return ValidatorIssue{
-			Issue: "expected valid enum, be: " + fmt.Sprint(v) + ", expected one of: " + fmt.Sprint(values)
+			Issue: "expected valid enum, be: " + fmt.Sprint(v) + ", expected one of: " + fmt.Sprint(values),
 		}
 	})
 
