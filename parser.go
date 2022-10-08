@@ -55,7 +55,7 @@ func newParser() Parser {
 		return ValidatorIssue{}
 	})
 
-	p.setMapperFunc("not_empty", func(v any) ValidatorIssue {
+	p.setValidatorFunc("not_empty", func(v any) ValidatorIssue {
 		if reflect.DeepEqual(reflect.ValueOf(v), reflect.Zero(reflect.TypeOf(v))) {
 			return ValidatorIssue{
 				Issue: "expected not empty value",
@@ -64,6 +64,9 @@ func newParser() Parser {
 
 		return ValidatorIssue{}
 	})
+
+	// create an alias for not_empty validator
+	p.validators["required"] = p.validators["not_empty"]
 
 	p.setValidatorFunc("upper", func(v string) ValidatorIssue {
 		if v != strings.ToUpper(v) {
@@ -242,6 +245,10 @@ func (p Parser) parseActors(instance any) {
 	var actors []reflect.Value
 	for i := 0; i < t.NumField(); i++ {
 		if tag, exist := t.Field(i).Tag.Lookup("ffvm"); exist {
+			if !strings.Contains(tag, ",") {
+				tag = "," + tag
+			}
+
 			tokens := strings.Split(tag, ",")
 			mappers, validators := strings.Split(tokens[0], ";"), strings.Split(tokens[1], ";")
 			actors = append(actors, reflect.ValueOf(func(val reflect.Value) (issues []ValidatorIssue) {
