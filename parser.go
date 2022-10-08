@@ -279,7 +279,9 @@ func (p Parser) parseActors(instance any) {
 				return issues
 			}))
 		} else {
-			actors = append(actors, reflect.Value{})
+			actors = append(actors, reflect.ValueOf(func(val reflect.Value) (issues []ValidatorIssue) {
+				return []ValidatorIssue{}
+			})
 		}
 	}
 
