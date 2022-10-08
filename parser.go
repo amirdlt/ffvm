@@ -182,6 +182,18 @@ func newParser() Parser {
 		return ValidatorIssue{}
 	})
 
+	p.setValidatorFunc("enum", func(v any, values ...any) {
+		for _, vv := range values {
+			if reflect.DeepEqual(v, vv) {
+				return ValidatorIssue{}
+			}
+		}
+
+		return ValidatorIssue{
+			Issue: "expected valid enum, be: " + fmt.Sprint(v) + ", expected one of: " + fmt.Sprint(values)
+		}
+	})
+
 	return p
 }
 
