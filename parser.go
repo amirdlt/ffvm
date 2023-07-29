@@ -3,250 +3,94 @@ package ffvm
 import (
 	"fmt"
 	"reflect"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
-func newParser() Parser {
-	p := Parser{
-		mappers:    map[string]func(in ...reflect.Value) reflect.Value{},
-		validators: map[string]func(val any, args ...string) ValidatorIssue{},
-		actors:     map[reflect.Type][]reflect.Value{},
+type (
+	FuncCategory string
+
+	LenInterface interface {
+		Len() int
 	}
 
-	p.setMapperFunc("upper", func(str string) string {
-		return strings.ToUpper(str)
-	})
-
-	p.setMapperFunc("lower", func(str string) string {
-		return strings.ToLower(str)
-	})
-
-	p.setMapperFunc("len", func(v any) int { return reflect.ValueOf(v).Len() })
-
-	p.setValidatorFunc("not_nil", func(v any) ValidatorIssue {
-		if v == nil {
-			return ValidatorIssue{
-				Issue: "expected not nil value",
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("nil", func(v any) ValidatorIssue {
-		if v != nil {
-			return ValidatorIssue{
-				Issue: "expected nil value but, " + fmt.Sprint(v),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("empty", func(v any) ValidatorIssue {
-		if !reflect.DeepEqual(reflect.ValueOf(v), reflect.Zero(reflect.TypeOf(v))) {
-			return ValidatorIssue{
-				Issue: "expected empty value but, " + fmt.Sprint(v),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("not_empty", func(v any) ValidatorIssue {
-		if reflect.DeepEqual(reflect.ValueOf(v), reflect.Zero(reflect.TypeOf(v))) {
-			return ValidatorIssue{
-				Issue: "expected not empty value",
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	// create an alias for not_empty validator
-	p.validators["required"] = p.validators["not_empty"]
-
-	p.setValidatorFunc("upper", func(v string) ValidatorIssue {
-		if v != strings.ToUpper(v) {
-			return ValidatorIssue{
-				Issue: "expected upper case",
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("lower", func(v string) ValidatorIssue {
-		if v != strings.ToLower(v) {
-			return ValidatorIssue{
-				Issue: "expected lower case",
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("max_len", func(v any, maxLen string) ValidatorIssue {
-		_maxLen, err := strconv.ParseInt(maxLen, 10, 0)
-		if err != nil {
-			panic(err)
-		}
-
-		_len := reflect.ValueOf(v).Len()
-		if _len > int(_maxLen) {
-			return ValidatorIssue{
-				Issue: "max len exceeded, expected max len " + maxLen + " but is " + fmt.Sprint(_len),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("min_len", func(v any, minLen string) ValidatorIssue {
-		_minLen, err := strconv.ParseInt(minLen, 10, 0)
-		if err != nil {
-			panic(err)
-		}
-
-		_len := reflect.ValueOf(v).Len()
-		if _len < int(_minLen) {
-			return ValidatorIssue{
-				Issue: "less than min len, expected min len " + minLen + " but is " + fmt.Sprint(_len),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("len", func(v any, expectedLen string) ValidatorIssue {
-		_expectedLen, err := strconv.ParseInt(expectedLen, 10, 0)
-		if err != nil {
-			panic(err)
-		}
-
-		_len := reflect.ValueOf(v).Len()
-		if _len != int(_expectedLen) {
-			return ValidatorIssue{
-				Issue: "expected len to be " + expectedLen + " but is " + fmt.Sprint(_len),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("max", func(v any, max string) ValidatorIssue {
-		_max, err := strconv.ParseFloat(max, 64)
-		if err != nil {
-			panic(err)
-		}
-
-		if val, err := strconv.ParseFloat(fmt.Sprint(v), 64); err != nil {
-			panic(err)
-		} else if val > _max {
-			return ValidatorIssue{
-				Issue: "expected not to be more than " + max + " but be " + fmt.Sprint(val),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("min", func(v any, min string) ValidatorIssue {
-		_min, err := strconv.ParseFloat(min, 64)
-		if err != nil {
-			panic(err)
-		}
-
-		if val, err := strconv.ParseFloat(fmt.Sprint(v), 64); err != nil {
-			panic(err)
-		} else if val < _min {
-			return ValidatorIssue{
-				Issue: "expected not to be less than " + min + " but be " + fmt.Sprint(val),
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("regex", func(v string, pattern string) ValidatorIssue {
-		if matched, err := regexp.MatchString(pattern, v); err != nil {
-			panic(err)
-		} else if !matched {
-			return ValidatorIssue{
-				Issue: "expected match string with " + pattern,
-			}
-		}
-
-		return ValidatorIssue{}
-	})
-
-	p.setValidatorFunc("enum", func(v any, values ...any) ValidatorIssue {
-		for _, vv := range values {
-			if reflect.DeepEqual(v, vv) {
-				return ValidatorIssue{}
-			}
-		}
-
-		return ValidatorIssue{
-			Issue: "expected valid enum, be: " + fmt.Sprint(v) + ", expected one of: " + fmt.Sprint(values),
-		}
-	})
-
-	return p
-}
-
-type ValidatorIssue struct {
-	Issue string
-	Level string
-}
-
-// Parser parse an actor syntax:
-// it has two parts separated by `,`: 1) manipulator(mapper, modifier), 2) validator
-type Parser struct {
-	// get some values and return single value which can be
-	// anything, if it is bool the func will be considered as a validator
-	mappers map[string]func(in ...reflect.Value) reflect.Value
-
-	// validators are functions that receive the value and
-	// an arbitrary count of arguments, these args all
-	// are just strings that must be parsed in the function itself
-	// return a single ValidatorIssue struct
-	// if no error has been detected an empty ValidatorIssue should be returned
-	validators map[string]func(val any, args ...string) ValidatorIssue
-
-	// each type has a list of actors
-	// in the same order of reflect.Value.Field
-	// each actor is a function that accept a value
-	// then return the new value and the validation result
-	actors map[reflect.Type][]reflect.Value
-}
-
-func (p Parser) setMapperFunc(funcName string, mapper any) {
-	val := reflect.ValueOf(mapper)
-	p.mappers[funcName] = func(in ...reflect.Value) reflect.Value {
-		return val.Call(in)[0]
+	ValidatorIssue struct {
+		Issue string `json:"issue,omitempty"`
+		Field string `json:"field"`
+		Value any    `json:"value"`
 	}
+
+	// Parser parse an actor syntax:
+	// it has two parts separated by `,`: 1) manipulator(mapper, modifier), 2) validator
+	Parser struct {
+		// get some values and return single value which can be
+		// anything, if it is bool the func will be considered as a validator
+		mappers map[string]func(args ...string) func(any) any
+
+		// validators are functions that receive the value and
+		// an arbitrary count of arguments, these args all
+		// are just strings that must be parsed in the function itself
+		// return a single ValidatorIssue struct
+		// if no error has been detected an empty ValidatorIssue should be returned
+		validators map[string]func(args ...string) func(any) ValidatorIssue
+
+		// each type has a list of actors
+		// in the same order of reflect.Value.Field
+		// each actor is a function that accept a value
+		// then return the new value and the validation result
+		actors map[reflect.Type][]func(self any) (any, []ValidatorIssue)
+	}
+)
+
+const (
+	Mapper    = FuncCategory("mapper")
+	Validator = FuncCategory("validator")
+)
+
+var (
+	NoIssue = ValidatorIssue{}
+
+	HoldOldValue struct{}
+)
+
+func (p Parser) SetMapperGenerator(generatorName string, mapper func(args ...string) func(any) any) {
+	if mapper == nil {
+		return
+	}
+
+	p.mappers[generatorName] = mapper
 }
 
-func (p Parser) setValidatorFunc(funcName string, validator any) {
-	val := reflect.ValueOf(validator)
-	p.validators[funcName] = func(v any, args ...string) ValidatorIssue {
-		_args := make([]reflect.Value, len(args))
-		for i, arg := range args {
-			_args[i] = reflect.ValueOf(arg)
-		}
-
-		return val.Call(append([]reflect.Value{reflect.ValueOf(v)}, _args...))[0].Interface().(ValidatorIssue)
+func (p Parser) SetValidatorGenerator(generatorName string, validator func(args ...string) func(any) ValidatorIssue) {
+	if validator == nil {
+		return
 	}
+
+	p.validators[generatorName] = validator
+}
+
+func (p Parser) GenerateMapperFunc(generatorName string, args ...string) func(any) any {
+	f, exist := p.mappers[generatorName]
+	if !exist {
+		panic("mapper with name='" + generatorName + "' does not exist")
+	}
+
+	return f(args...)
+}
+
+func (p Parser) GenerateValidatorFunc(generatorName string, args ...string) func(any) ValidatorIssue {
+	f, exist := p.validators[generatorName]
+	if !exist {
+		panic("validator with name='" + generatorName + "' does not exist")
+	}
+
+	return f(args...)
 }
 
 // parseActors parse all exported actors and save them in a map
 func (p Parser) parseActors(instance any) {
 	val := reflect.ValueOf(instance)
 	if val.Kind() != reflect.Struct {
-		panic("instance must be struct")
+		panic("instance must be struct but was " + val.Kind().String())
 	}
 
 	t := val.Type()
@@ -254,58 +98,128 @@ func (p Parser) parseActors(instance any) {
 		return
 	}
 
-	var actors []reflect.Value
+	actors := make([]func(any) (any, []ValidatorIssue), t.NumField())
 	for i := 0; i < t.NumField(); i++ {
-		if tag, exist := t.Field(i).Tag.Lookup("ffvm"); exist {
+		field := t.Field(i)
+		fieldAddr := nameOfField(field)
+
+		var mapperFunc func(any) any
+		var validatorFunc func(any) []ValidatorIssue
+
+		tag, exist := field.Tag.Lookup("ffvm")
+		if exist && tag != "" {
 			if !strings.Contains(tag, ",") {
 				tag = "," + tag
 			}
 
 			tokens := strings.Split(tag, ",")
 			mappers, validators := strings.Split(tokens[0], ";"), strings.Split(tokens[1], ";")
-			actors = append(actors, reflect.ValueOf(func(val reflect.Value) (issues []ValidatorIssue) {
-				for _, mapper := range mappers {
-					if mapper == "" {
-						continue
-					}
 
-					val.Set(p.mappers[mapper](val))
-				}
-
-				for _, validator := range validators {
-					if validator == "" {
-						continue
-					}
-
-					validator, args := tokenizeFunction(validator)
-					issue := p.validators[validator](val.Interface(), args...)
-					if issue.Issue == "" {
-						continue
-					} else if issue.Level == "" {
-						issue.Level = "UNSET"
-					}
-
-					issues = append(issues, issue)
-				}
-
-				return issues
-			}))
-		} else {
-			actors = append(actors, reflect.ValueOf(func(val reflect.Value) (issues []ValidatorIssue) {
-				return []ValidatorIssue{}
-			}))
+			mapperFunc = p.createMapperFuncOfField(mappers)
+			validatorFunc = p.createValidatorFuncOfField(validators)
 		}
+
+		actors[i] = func(self any) (any, []ValidatorIssue) {
+			newVal, issues := p.act(self, fieldAddr)
+
+			if mapperFunc != nil {
+				newVal = mapperFunc(newVal)
+			}
+
+			if validatorFunc != nil {
+				issues = append(issues, validatorFunc(newVal)...)
+			}
+
+			return newVal, issues
+		}
+	}
+
+	var foundNotNilActor bool
+	for _, actor := range actors {
+		if actor != nil {
+			foundNotNilActor = true
+			break
+		}
+	}
+
+	if !foundNotNilActor {
+		p.actors = nil
+		return
 	}
 
 	p.actors[t] = actors
 }
 
+func (p Parser) createValidatorFuncOfField(validators []string) func(any) []ValidatorIssue {
+	generatedValidators := make([]func(any) ValidatorIssue, len(validators))
+	for i, validator := range validators {
+		validator, args := tokenizeFunction(validator)
+		left := p.GenerateValidatorFunc(validator, args...)
+		generatedValidators[i] = func(self any) ValidatorIssue {
+			return left(self)
+		}
+	}
+
+	return func(self any) []ValidatorIssue {
+		var issues []ValidatorIssue
+		for _, validator := range generatedValidators {
+			if issue := validator(self); issue != NoIssue {
+				issue.Value = self
+				issues = append(issues, issue)
+			}
+		}
+
+		return issues
+	}
+}
+
+func (p Parser) createMapperFuncOfField(mappers []string) func(any) any {
+	var mapperFunc func(any) any
+	for _, mapper := range mappers {
+		mapper, args := tokenizeFunction(mapper)
+		innerFunc := p.GenerateMapperFunc(mapper, args...)
+		if mapperFunc == nil {
+			mapperFunc = innerFunc
+		} else {
+			outer := mapperFunc
+			mapperFunc = func(self any) any { return outer(innerFunc(self)) }
+		}
+	}
+
+	return mapperFunc
+}
+
 // act firstly do the manipulation, then validation
 // instancePtr is a pointer to an instance of the struct
-func (p Parser) act(instancePtr any) map[string][]ValidatorIssue {
-	val := reflect.ValueOf(instancePtr).Elem()
-	if val.Kind() != reflect.Struct {
-		panic("value must be a struct")
+func (p Parser) act(in any, parent string) (any, []ValidatorIssue) {
+	val := reflect.ValueOf(in)
+	switch val.Kind() {
+	case reflect.Struct: // continue function
+	case reflect.Pointer: // continue function
+		val = val.Elem()
+	case reflect.Slice, reflect.Array:
+		var allIssues []ValidatorIssue
+		for i := 0; i < val.Len(); i++ {
+			addr := fmt.Sprintf("%s[%d]", parent, i)
+			newVal, issues := p.act(val.Index(i).Interface(), addr)
+			val.Index(i).Set(reflect.ValueOf(newVal))
+			allIssues = append(allIssues, issues...)
+		}
+
+		return in, allIssues
+	case reflect.Map:
+		var allIssues []ValidatorIssue
+		iter := val.MapRange()
+		for iter.Next() {
+			addr := fmt.Sprint(parent, ".", iter.Key().Interface())
+			newVal, issues := p.act(iter.Value().Interface(), addr)
+			val.SetMapIndex(iter.Key(), reflect.ValueOf(newVal))
+			allIssues = append(allIssues, issues...)
+		}
+
+		return in, allIssues
+	default:
+		return in, nil
 	}
 
 	t := val.Type()
@@ -315,15 +229,39 @@ func (p Parser) act(instancePtr any) map[string][]ValidatorIssue {
 		actors = p.actors[t]
 	}
 
-	issues := map[string][]ValidatorIssue{}
-	for i, actor := range actors {
-		field := val.Field(i)
-		result := actor.Call([]reflect.Value{reflect.ValueOf(field)})
-		fieldName := t.Field(i).Name
-		issues[fieldName] = append(issues[fieldName], result[0].Interface().([]ValidatorIssue)...)
+	if actors == nil {
+		return in, nil
 	}
 
-	return issues
+	var issues []ValidatorIssue
+	for i, actor := range actors {
+		if actor == nil {
+			continue
+		}
+
+		field := val.Field(i)
+		mapped, fieldIssues := actor(field.Interface())
+		mappedVal := reflect.ValueOf(mapped)
+		if mapped != HoldOldValue && field.CanSet() && field.CanConvert(mappedVal.Type()) {
+			field.Set(mappedVal)
+		}
+		addr := nameOfField(val.Type().Field(i))
+		if parent != "" {
+			addr = parent + "." + addr
+		}
+
+		for i := range fieldIssues {
+			if fieldIssues[i].Field != "" {
+				fieldIssues[i].Field = fmt.Sprint(addr, ".", fieldIssues[i].Field)
+			} else {
+				fieldIssues[i].Field = addr
+			}
+		}
+
+		issues = append(issues, fieldIssues...)
+	}
+
+	return in, issues
 }
 
 func tokenizeFunction(f string) (string, []string) {
@@ -333,15 +271,4 @@ func tokenizeFunction(f string) (string, []string) {
 	}
 
 	return f[:index], strings.Split(f[index+1:], "&")
-}
-
-var parser *Parser
-
-func Validate(val any) map[string][]ValidatorIssue {
-	if parser == nil {
-		p := newParser()
-		parser = &p
-	}
-
-	return parser.act(val)
 }
